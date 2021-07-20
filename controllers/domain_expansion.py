@@ -65,7 +65,7 @@ class DomainExpansion(Resource):
         # based on force - either gives data back from database or gets a True status back to continue with a fresh scan
         check = utils.check_force(value, force, collection=common_strings.strings['expansion'],
                                   timeframe=int(os.environ.get('DATABASE_LOOK_BACK_TIME')),
-                                  filter_by_ip=common_strings.strings['format_by_ip'])
+                                  filter_by_ip=args[common_strings.strings['format_by_ip']])
 
         # if a scan is already requested/in-process, we send a 202 indicating that we are working on it
         if check == common_strings.strings['status_running'] or check == common_strings.strings['status_queued']:
@@ -78,11 +78,11 @@ class DomainExpansion(Resource):
             # mark in db that the scan is queued
             utils.mark_db_request(value, status=common_strings.strings['status_queued'],
                                   collection=common_strings.strings['expansion'],
-                                  filter_by_ip=common_strings.strings['format_by_ip'])
+                                  filter_by_ip=args[common_strings.strings['format_by_ip']])
             output = {common_strings.strings['key_value']: value, common_strings.strings['key_ip']: ip}
             utils.mark_db_request(value, status=common_strings.strings['status_running'],
                                   collection=common_strings.strings['expansion'],
-                                  filter_by_ip=common_strings.strings['format_by_ip'])
+                                  filter_by_ip=args[common_strings.strings['format_by_ip']])
 
             # first sub-domain enumeration
             try:
@@ -138,5 +138,5 @@ class DomainExpansion(Resource):
                     output['unique_ips_count'] = len(formatted_output)
 
                 output['sub_domains'] = formatted_output
-                queue_to_db.expansion_response_db_addition(value, output, common_strings.strings['format_by_ip'])
+                queue_to_db.expansion_response_db_addition(value, output, args[common_strings.strings['format_by_ip']])
                 return output, 200
