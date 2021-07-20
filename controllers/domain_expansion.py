@@ -64,7 +64,8 @@ class DomainExpansion(Resource):
 
         # based on force - either gives data back from database or gets a True status back to continue with a fresh scan
         check = utils.check_force(value, force, collection=common_strings.strings['expansion'],
-                                  timeframe=int(os.environ.get('DATABASE_LOOK_BACK_TIME')))
+                                  timeframe=int(os.environ.get('DATABASE_LOOK_BACK_TIME')),
+                                  filter_by_ip=args[common_strings.strings['format_by_ip']])
 
         # if a scan is already requested/in-process, we send a 202 indicating that we are working on it
         if check == common_strings.strings['status_running'] or check == common_strings.strings['status_queued']:
@@ -76,11 +77,12 @@ class DomainExpansion(Resource):
         else:
             # mark in db that the scan is queued
             utils.mark_db_request(value, status=common_strings.strings['status_queued'],
-                                  collection=common_strings.strings['expansion'])
-            output = {common_strings.strings['key_value']: value, common_strings.strings['key_ip']: ip,
-                      common_strings.strings['location']: utils.get_location_ip(ip)}
+                                  collection=common_strings.strings['expansion'],
+                                  filter_by_ip=args[common_strings.strings['format_by_ip']])
+            output = {common_strings.strings['key_value']: value, common_strings.strings['key_ip']: ip}
             utils.mark_db_request(value, status=common_strings.strings['status_running'],
-                                  collection=common_strings.strings['expansion'])
+                                  collection=common_strings.strings['expansion'],
+                                  filter_by_ip=args[common_strings.strings['format_by_ip']])
 
             # first sub-domain enumeration
             try:
@@ -101,6 +103,7 @@ class DomainExpansion(Resource):
 
             logger.debug(f"anubis expansion scan for {value} is complete")
 
+            # if output of both the sub-domain enumerations are errors, send a 503 status with all keys
             if output_sublistr == common_strings.strings['error'] and output_anubis == common_strings.strings['error']:
                 output['sub_domain_count'] = 0
 
@@ -111,12 +114,21 @@ class DomainExpansion(Resource):
                 return output, 503
             else:
 
+                # if only one of them is errored, ensure that it is set as empty list for addition
                 if output_sublistr == common_strings.strings['error']:
                     output_sublistr = []
                 elif output_anubis == common_strings.strings['error']:
                     output_anubis = []
 
                 output_set = set(output_sublistr + output_anubis)
+
+                # the domain itself should almost always show up as sub-domain but this is just in case if it doesn't
+                if value in output_set:
+                    pass
+                else:
+                    output_set.add(value)
+
+                # we get all three variables below after formatting by IP address as key
                 formatted_output, blacklist, output['sub_domain_count'] = utils.format_by_ip(
                     output_set, args[common_strings.strings['format_by_ip']]
                 )
@@ -126,5 +138,5 @@ class DomainExpansion(Resource):
                     output['unique_ips_count'] = len(formatted_output)
 
                 output['sub_domains'] = formatted_output
-                queue_to_db.expansion_response_db_addition(value, output)
+                queue_to_db.expansion_response_db_addition(value, output, args[common_strings.strings['format_by_ip']])
                 return output, 200
