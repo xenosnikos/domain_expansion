@@ -74,7 +74,8 @@ def mark_db_request(value, status, collection, filter_by_ip=False):
 def get_location_ip(ip):
     global ip_location_dict
     try:
-        # Free API
+        # Free API - has a limit of 15k requests per hour, it will start throwing a 403 after that limit at which we
+        # want to handle the exception and go to the paid API
         resp = requests.get(f"{os.environ.get('FREE_GEOIP')}/{ip}")
         for each in json.loads(resp.text):
             # We don't worry about not fetching these fields from the free API
